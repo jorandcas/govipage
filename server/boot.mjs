@@ -21,7 +21,7 @@ import multer from "multer";
 
 // ⬇️ INICIALIZACIÓN DE APP Y PUERTO
 const app = express();
-const PORT = process.env.PORT ? Number(process.env.PORT) : 5174;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 const HOST = "0.0.0.0"
 
 
@@ -192,11 +192,10 @@ function buildClientEmailHtml({ data, folio, createdAt, brand = {} }) {
     <tr><td align="center">
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#fff;border-radius:16px;overflow:hidden">
         <tr><td style="background:${color};padding:20px 24px" align="left">
-          ${
-            logoUrl
-              ? `<img src="${logoUrl}" alt="Movistar" style="height:28px;display:block">`
-              : `<div style="color:#fff;font-weight:700;font-size:18px">Distribuidor Movistar</div>`
-          }
+          ${logoUrl
+      ? `<img src="${logoUrl}" alt="Movistar" style="height:28px;display:block">`
+      : `<div style="color:#fff;font-weight:700;font-size:18px">Distribuidor Movistar</div>`
+    }
         </td></tr>
         <tr><td style="padding:24px">
           <h1 style="margin:0 0 12px;font-size:22px;color:#111827">¡Gracias, ${nombre}!</h1>
@@ -227,9 +226,9 @@ function buildOpsEmailHtmlDynamic({ data = {}, folio, urls = {}, createdAt, meta
   const fecha = createdAt ? new Date(createdAt).toLocaleString() : new Date().toLocaleString();
 
   const ORDER_FIRST = [
-    "nombreCompleto","email","numeroPortar","nip","numeroContacto",
-    "planElegido","calle","numeroExterior","codigoPostal",
-    "descripcionVivienda","aceptaTyC","origen","userAgent"
+    "nombreCompleto", "email", "numeroPortar", "nip", "numeroContacto",
+    "planElegido", "calle", "numeroExterior", "codigoPostal",
+    "descripcionVivienda", "aceptaTyC", "origen", "userAgent"
   ];
 
   const entries = Object.entries(data);
@@ -237,7 +236,7 @@ function buildOpsEmailHtmlDynamic({ data = {}, folio, urls = {}, createdAt, meta
     const i = ORDER_FIRST.indexOf(k);
     return i === -1 ? Number.MAX_SAFE_INTEGER : i;
   };
-  entries.sort((a,b) => {
+  entries.sort((a, b) => {
     const ai = idx(a[0]), bi = idx(b[0]);
     if (ai !== bi) return ai - bi;
     return a[0].localeCompare(b[0]);
@@ -315,10 +314,10 @@ app.get("/admin/health", (req, res) => {
 app.post(
   "/api/portabilidad",
   upload.fields([
-    { name: "ineFrente",  maxCount: 1 },
+    { name: "ineFrente", maxCount: 1 },
     { name: "ineReverso", maxCount: 1 },
-    { name: "frente",     maxCount: 1 }, // alias compatibles
-    { name: "reverso",    maxCount: 1 },
+    { name: "frente", maxCount: 1 }, // alias compatibles
+    { name: "reverso", maxCount: 1 },
   ]),
   async (req, res) => {
     try {
@@ -327,7 +326,7 @@ app.post(
       const data = JSON.parse(rawData);
 
       // 2) archivos
-      const fFrente  = req.files?.ineFrente?.[0]  || req.files?.frente?.[0]  || null;
+      const fFrente = req.files?.ineFrente?.[0] || req.files?.frente?.[0] || null;
       const fReverso = req.files?.ineReverso?.[0] || req.files?.reverso?.[0] || null;
       if (!fFrente || !fReverso) {
         return res.status(400).json({ ok: false, error: "INE frente y reverso son requeridos" });
@@ -348,20 +347,20 @@ app.post(
       const { data: row, error } = await supabase
         .from("portabilidades")
         .insert([{
-          nombre_completo:      data.nombreCompleto,
-          email:                 data.email,
-          numero_portar:         data.numeroPortar,
-          nip:                   data.nip,
-          numero_contacto:       data.numeroContacto,
-          plan_elegido:          data.planElegido || "",
-          calle:                 data.calle,
-          numero_exterior:       data.numeroExterior,
-          codigo_postal:         data.codigoPostal,
-          descripcion_vivienda:  data.descripcionVivienda || "",
-          ine_frente_url:        urlFrente,
-          ine_reverso_url:       urlReverso,
-          storage_carpeta:       carpeta,
-          created_at:            new Date().toISOString(),
+          nombre_completo: data.nombreCompleto,
+          email: data.email,
+          numero_portar: data.numeroPortar,
+          nip: data.nip,
+          numero_contacto: data.numeroContacto,
+          plan_elegido: data.planElegido || "",
+          calle: data.calle,
+          numero_exterior: data.numeroExterior,
+          codigo_postal: data.codigoPostal,
+          descripcion_vivienda: data.descripcionVivienda || "",
+          ine_frente_url: urlFrente,
+          ine_reverso_url: urlReverso,
+          storage_carpeta: carpeta,
+          created_at: new Date().toISOString(),
         }])
         .select("id")
         .single();
@@ -423,7 +422,7 @@ app.post(
         folio,
         carpeta,
         files: { frente: frentePath, reverso: reversoPath },
-        urls:  { frente: urlFrente,  reverso: urlReverso  },
+        urls: { frente: urlFrente, reverso: urlReverso },
         emailStatus,
       });
     } catch (err) {

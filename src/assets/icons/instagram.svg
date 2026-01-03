@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Capa_1" data-name="Capa 1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 50 50">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: none;
+      }
+
+      .cls-2 {
+        clip-path: url(#clippath-1);
+      }
+
+      .cls-3 {
+        clip-path: url(#clippath-2);
+      }
+
+      .cls-4 {
+        fill: #fff;
+      }
+
+      .cls-5 {
+        fill: url(#Degradado_sin_nombre_14);
+      }
+
+      .cls-6 {
+        clip-path: url(#clippath);
+      }
+    </style>
+    <clipPath id="clippath">
+      <rect class="cls-1" x="-2.59" y="-2.59" width="55.17" height="55.17"/>
+    </clipPath>
+    <clipPath id="clippath-1">
+      <path class="cls-1" d="M11.11.47C5.21.47.42,5.28.42,11.22v27.57c0,5.94,4.79,10.75,10.7,10.75h27.77c5.91,0,10.7-4.81,10.7-10.75V11.22c0-5.94-4.79-10.75-10.7-10.75H11.11Z"/>
+    </clipPath>
+    <radialGradient id="Degradado_sin_nombre_14" data-name="Degradado sin nombre 14" cx="-864.46" cy="490.34" fx="-864.46" fy="490.34" r=".08" gradientTransform="translate(559126.75 317172.05) scale(646.8 -646.8)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffd776"/>
+      <stop offset=".25" stop-color="#f3a554"/>
+      <stop offset=".38" stop-color="#f15c3c"/>
+      <stop offset=".7" stop-color="#c32f87"/>
+      <stop offset=".95" stop-color="#6765ae"/>
+      <stop offset=".99" stop-color="#5c6cb3"/>
+      <stop offset="1" stop-color="#5c6cb3"/>
+    </radialGradient>
+    <clipPath id="clippath-2">
+      <rect class="cls-1" x="-2.59" y="-2.59" width="55.17" height="55.17"/>
+    </clipPath>
+  </defs>
+  <g class="cls-6">
+    <g class="cls-2">
+      <rect class="cls-5" x="-6.18" y="-6.21" width="62.36" height="62.42" transform="translate(-6.76 40.53) rotate(-71.06)"/>
+    </g>
+    <g class="cls-3">
+      <path class="cls-4" d="M32.4,43.48h-14.95c-5.72,0-10.4-4.68-10.4-10.4v-15.93c0-5.72,4.68-10.4,10.4-10.4h14.95c5.72,0,10.4,4.68,10.4,10.4v15.93c0,5.72-4.68,10.4-10.4,10.4M32.4,40.73c2.03,0,3.95-.8,5.4-2.25s2.25-3.37,2.25-5.4v-15.93c0-2.03-.8-3.95-2.25-5.4-1.45-1.45-3.37-2.25-5.4-2.25h-14.95c-2.03,0-3.95.8-5.4,2.25-1.45,1.45-2.25,3.37-2.25,5.4v15.93c0,2.03.8,3.95,2.25,5.4,1.45,1.45,3.37,2.25,5.4,2.25h14.95Z"/>
+      <path class="cls-4" d="M34.82,24.97c0,5.44-4.41,9.84-9.84,9.84s-9.84-4.41-9.84-9.84,4.41-9.84,9.84-9.84,9.84,4.41,9.84,9.84M24.93,18.54c-3.56,0-6.44,2.89-6.44,6.44s2.89,6.44,6.44,6.44,6.44-2.89,6.44-6.44-2.89-6.44-6.44-6.44"/>
+      <path class="cls-4" d="M37.31,14.98c0,1.29-1.04,2.33-2.33,2.33s-2.33-1.04-2.33-2.33,1.04-2.33,2.33-2.33,2.33,1.04,2.33,2.33"/>
+    </g>
+  </g>
+</svg>

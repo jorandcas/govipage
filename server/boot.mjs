@@ -1,8 +1,7 @@
-
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-
-
+import fs from "node:fs";
+import crypto from "node:crypto";
 
 // Cargar dotenv SOLO en desarrollo
 if (process.env.NODE_ENV !== "production") {
@@ -16,14 +15,12 @@ if (process.env.NODE_ENV !== "production") {
 
 import express from "express";
 import cors from "cors";
-import { createClient } from "@supabase/supabase-js";
 import multer from "multer";
 
 // ⬇️ INICIALIZACIÓN DE APP Y PUERTO
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
-const HOST = "0.0.0.0"
-
+const HOST = "0.0.0.0";
 
 // ⬇️ CORS (lista blanca por entorno)
 const allowedOrigins = (process.env.CORS_ORIGINS || "")
@@ -34,7 +31,6 @@ const allowedOrigins = (process.env.CORS_ORIGINS || "")
 app.use(
   cors({
     origin: (origin, cb) => {
-      // permitir requests sin Origin (curl/postman) y los orígenes en whitelist
       if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
       cb(new Error(`CORS bloqueado para origen: ${origin}`));
     },
@@ -46,25 +42,16 @@ app.use(
 app.use(express.json({ limit: "5mb" }));
 app.use(express.urlencoded({ extended: true }));
 
+// ---------- Storage local (persistente) ----------
+const UPLOAD_BASE = process.env.UPLOAD_DIR || "/app/uploads"; // en Coolify montas /data/uploads -> /app/uploads
+fs.mkdirSync(UPLOAD_BASE, { recursive: true });
 
+// Base pública para armar links (tu dominio de API)
+const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || "").replace(/\/$/, "");
+// Token admin (ya lo tienes)
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "";
 
-// ---------- ENV / Supabase ----------
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SERVICE_KEY =
-  process.env.SUPABASE_SERVICE_ROLE || process.env.SERVICE_ROLE;
-const BUCKET = process.env.SUPABASE_BUCKET || "portabilidad";
-
-const PUBLIC_BUCKET = process.env.SUPABASE_PUBLIC_BUCKET === "1";
-const SIGNED_TTL = Number(
-  process.env.SUPABASE_SIGNED_URL_TTL || 60 * 60 * 24 * 7
-); // 7 días
-
-if (!SUPABASE_URL) throw new Error("Missing SUPABASE_URL");
-if (!SERVICE_KEY) throw new Error("Missing SUPABASE_SERVICE_ROLE / SERVICE_ROLE");
-
-const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
-
-// ---------- Multer ----------
+// ---------- Multer (memoria) ----------
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
@@ -84,6 +71,7 @@ function sanitize(name = "") {
     .replace(/\s+/g, "-")
     .toLowerCase();
 }
+
 function escapeHtml(v = "") {
   return String(v)
     .replace(/&/g, "&amp;")
@@ -92,44 +80,58 @@ function escapeHtml(v = "") {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 }
+
 function prettyLabel(key = "") {
-  const k = String(key).replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+  const k = String(key)
+    .replace(/_/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .toLowerCase();
   return k.charAt(0).toUpperCase() + k.slice(1);
 }
+
 function normalizeValue(v) {
   if (v === null || v === undefined) return "";
   if (typeof v === "boolean") return v ? "Sí" : "No";
-  if (Array.isArray(v)) return v.map(x => String(x)).join(", ");
+  if (Array.isArray(v)) return v.map((x) => String(x)).join(", ");
   if (typeof v === "object") return JSON.stringify(v);
   return String(v);
 }
 
-// --- Subida a Storage + URL (pública o firmada)
-async function uploadToStorage({ buffer, mimetype, destPath }) {
-  const { error: upErr } = await supabase.storage.from(BUCKET).upload(
-    destPath,
-    buffer,
-    { contentType: mimetype, upsert: true }
+function extractAdminToken(req) {
+  return (
+    req.query.token ||
+    req.get("x-admin-token") ||
+    ((req.get("authorization") || "").match(/^Bearer\s+(.+)$/i) || [])[1]
   );
-  if (upErr) {
-    console.error("[Storage] Upload error:", upErr);
-    throw new Error("Error subiendo archivo a Storage");
-  }
+}
 
-  if (PUBLIC_BUCKET) {
-    const { data } = supabase.storage.from(BUCKET).getPublicUrl(destPath);
-    return data.publicUrl;
-  } else {
-    const { data, error } = await supabase
-      .storage
-      .from(BUCKET)
-      .createSignedUrl(destPath, SIGNED_TTL);
-    if (error) {
-      console.error("[Storage] Signed URL error:", error);
-      throw new Error("Error generando URL firmada");
-    }
-    return data.signedUrl;
-  }
+// Guarda archivo en disco y retorna ruta relativa segura
+async function saveFileToDisk({ buffer, originalname, mimetype, folderRel }) {
+  const ext =
+    mimetype?.includes("png") ? "png" :
+      mimetype?.includes("webp") ? "webp" :
+        "jpg";
+
+  const safeName = sanitize(originalname || `archivo.${ext}`);
+  const fileName = `${Date.now()}-${safeName}`;
+  const folderAbs = path.join(UPLOAD_BASE, folderRel);
+
+  fs.mkdirSync(folderAbs, { recursive: true });
+
+  const fileAbs = path.join(folderAbs, fileName);
+  await fs.promises.writeFile(fileAbs, buffer);
+
+  const relPath = path.posix.join(folderRel.split(path.sep).join("/"), fileName);
+  return relPath; // ejemplo: portas/2026.../123-ine-frente.jpg
+}
+
+// Link de descarga protegido (solo mesa)
+function adminDownloadUrl(relPath) {
+  if (!PUBLIC_BASE_URL) return relPath; // fallback si no setearon base url
+  // Nota: va protegido por token en query. Si prefieres header, lo ajustamos.
+  return `${PUBLIC_BASE_URL}/admin/download?token=${encodeURIComponent(
+    ADMIN_TOKEN
+  )}&file=${encodeURIComponent(relPath)}`;
 }
 
 // --- Email (Brevo)
@@ -139,10 +141,10 @@ async function sendBrevoEmail({ to, subject, html, cc = [], replyTo }) {
     return { skipped: true };
   }
 
-  const toList = (to || []).filter(Boolean).map(email => ({ email }));
+  const toList = (to || []).filter(Boolean).map((email) => ({ email }));
   if (toList.length === 0) throw new Error('Parámetro "to" vacío');
 
-  const ccList = (cc || []).filter(Boolean).map(email => ({ email }));
+  const ccList = (cc || []).filter(Boolean).map((email) => ({ email }));
 
   const payload = {
     sender: { email: process.env.FROM_EMAIL, name: process.env.FROM_NAME },
@@ -262,11 +264,11 @@ function buildOpsEmailHtmlDynamic({ data = {}, folio, urls = {}, createdAt, meta
           </table>
 
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;border:1px solid #E5E7EB;border-radius:12px;border-collapse:collapse;overflow:hidden">
-            <tr><td colspan="2" style="background:#F9FAFB;padding:10px 12px;font-weight:700;color:#111827;border-bottom:1px solid #E5E7EB">Adjuntos / Storage</td></tr>
+            <tr><td colspan="2" style="background:#F9FAFB;padding:10px 12px;font-weight:700;color:#111827;border-bottom:1px solid #E5E7EB">Archivos (descarga segura)</td></tr>
             <tr><td style="padding:10px 12px;width:38%;color:#6B7280;border-bottom:1px solid #E5E7EB">INE Frente</td>
-                <td style="padding:10px 12px;border-bottom:1px solid #E5E7EB"><a href="${urls.frente || "#"}" target="_blank">Abrir archivo</a></td></tr>
+                <td style="padding:10px 12px;border-bottom:1px solid #E5E7EB"><a href="${urls.frente || "#"}" target="_blank">Descargar</a></td></tr>
             <tr><td style="padding:10px 12px;color:#6B7280">INE Reverso</td>
-                <td style="padding:10px 12px"><a href="${urls.reverso || "#"}" target="_blank">Abrir archivo</a></td></tr>
+                <td style="padding:10px 12px"><a href="${urls.reverso || "#"}" target="_blank">Descargar</a></td></tr>
           </table>
 
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;border:1px solid #E5E7EB;border-radius:12px;border-collapse:collapse;overflow:hidden">
@@ -290,24 +292,26 @@ app.get("/health", (req, res) => {
   res.json({ ok: true, env: process.env.NODE_ENV || "dev", time: new Date().toISOString() });
 });
 
-// ---------- Health seguro (token) ----------
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "";
-app.get("/admin/health", (req, res) => {
-  const token =
-    req.query.token ||
-    req.get("x-admin-token") ||
-    ((req.get("authorization") || "").match(/^Bearer\s+(.+)$/i) || [])[1];
+// ---------- Descarga segura (requiere ADMIN_TOKEN) ----------
+app.get("/admin/download", async (req, res) => {
+  try {
+    const token = extractAdminToken(req);
+    if (!ADMIN_TOKEN) return res.status(500).json({ ok: false, error: "ADMIN_TOKEN not set" });
+    if (token !== ADMIN_TOKEN) return res.status(401).json({ ok: false, error: "unauthorized" });
 
-  if (!ADMIN_TOKEN) return res.status(500).json({ ok: false, error: "ADMIN_TOKEN not set" });
-  if (token !== ADMIN_TOKEN) return res.status(401).json({ ok: false, error: "unauthorized" });
+    const rel = String(req.query.file || "");
+    if (!rel) return res.status(400).json({ ok: false, error: "file is required" });
 
-  res.json({
-    ok: true,
-    env: process.env.NODE_ENV || "dev",
-    pid: process.pid,
-    uptime: Math.round(process.uptime()),
-    time: new Date().toISOString(),
-  });
+    // prevenir path traversal
+    const abs = path.resolve(UPLOAD_BASE, rel);
+    const base = path.resolve(UPLOAD_BASE);
+    if (!abs.startsWith(base)) return res.status(400).json({ ok: false, error: "invalid path" });
+
+    return res.sendFile(abs);
+  } catch (e) {
+    console.error("[admin/download] error:", e);
+    return res.status(500).json({ ok: false, error: e?.message || "error" });
+  }
 });
 
 // ---------- Endpoint principal ----------
@@ -332,45 +336,30 @@ app.post(
         return res.status(400).json({ ok: false, error: "INE frente y reverso son requeridos" });
       }
 
-      // 3) carpeta destino
+      // 3) folio + carpeta
+      const folio = crypto.randomUUID();
       const now = new Date().toISOString().replace(/[:.]/g, "-");
-      const carpeta = `portas/${now}-${sanitize(data?.numeroPortar || "sin-numero")}`;
+      const folderRel = `portas/${now}-${sanitize(data?.numeroPortar || "sin-numero")}-${folio.slice(0, 8)}`;
 
-      // 4) subidas
-      const frentePath = `${carpeta}/ine-frente-${sanitize(fFrente.originalname)}`;
-      const reversoPath = `${carpeta}/ine-reverso-${sanitize(fReverso.originalname)}`;
+      // 4) guardar archivos
+      const relFrente = await saveFileToDisk({
+        buffer: fFrente.buffer,
+        originalname: `ine-frente-${fFrente.originalname}`,
+        mimetype: fFrente.mimetype,
+        folderRel,
+      });
 
-      const urlFrente = await uploadToStorage({ buffer: fFrente.buffer, mimetype: fFrente.mimetype, destPath: frentePath });
-      const urlReverso = await uploadToStorage({ buffer: fReverso.buffer, mimetype: fReverso.mimetype, destPath: reversoPath });
+      const relReverso = await saveFileToDisk({
+        buffer: fReverso.buffer,
+        originalname: `ine-reverso-${fReverso.originalname}`,
+        mimetype: fReverso.mimetype,
+        folderRel,
+      });
 
-      // 5) insertar en BD y obtener folio
-      const { data: row, error } = await supabase
-        .from("portabilidades")
-        .insert([{
-          nombre_completo: data.nombreCompleto,
-          email: data.email,
-          numero_portar: data.numeroPortar,
-          nip: data.nip,
-          numero_contacto: data.numeroContacto,
-          plan_elegido: data.planElegido || "",
-          calle: data.calle,
-          numero_exterior: data.numeroExterior,
-          codigo_postal: data.codigoPostal,
-          descripcion_vivienda: data.descripcionVivienda || "",
-          ine_frente_url: urlFrente,
-          ine_reverso_url: urlReverso,
-          storage_carpeta: carpeta,
-          created_at: new Date().toISOString(),
-        }])
-        .select("id")
-        .single();
+      // 5) URLs seguras para Mesa (requiere ADMIN_TOKEN)
+      const urlFrente = adminDownloadUrl(relFrente);
+      const urlReverso = adminDownloadUrl(relReverso);
 
-      if (error) {
-        console.error("DB insert error:", error);
-        return res.status(500).json({ ok: false, error: "Error guardando en base de datos" });
-      }
-
-      const folio = row.id;
       const createdAt = new Date();
       const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
 
@@ -382,8 +371,9 @@ app.post(
           folio,
           urls: { frente: urlFrente, reverso: urlReverso },
           createdAt,
-          meta: { ip, userAgent: data.userAgent }
+          meta: { ip, userAgent: data.userAgent },
         });
+
         const rMesa = await sendBrevoEmail({
           to: [process.env.MESA_CONTROL],
           cc: [process.env.CC_OPERACIONES],
@@ -420,8 +410,8 @@ app.post(
       return res.json({
         ok: true,
         folio,
-        carpeta,
-        files: { frente: frentePath, reverso: reversoPath },
+        folder: folderRel,
+        files: { frente: relFrente, reverso: relReverso },
         urls: { frente: urlFrente, reverso: urlReverso },
         emailStatus,
       });
@@ -431,12 +421,13 @@ app.post(
     }
   }
 );
-// Endpoint de salud
+
+// Endpoint de salud API
 app.get("/api/health", (req, res) => {
   res.status(200).send("ok");
 });
 
 // ---------- Start ----------
 app.listen(PORT, HOST, () => {
-  console.log(`[API] Ready on port ${PORT} (env: ${process.env.NODE_ENV || "dev"})`);
+  console.log(`[API] Ready on ${HOST}:${PORT} (env: ${process.env.NODE_ENV || "dev"})`);
 });

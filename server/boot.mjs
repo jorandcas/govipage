@@ -450,8 +450,22 @@ app.post(
       });
     } catch (err) {
       console.error("[/api/portabilidad] ERROR:", err?.stack || err);
-      return res.status(500).json({ ok: false, error: err?.message || "Server error" });
+
+      const debug = process.env.DEBUG_ERRORS === "true";
+
+      return res.status(500).json({
+        ok: false,
+        error: err?.message || "Server error",
+        ...(debug
+          ? {
+            code: err?.code,
+            stack: err?.stack,
+            baseDir: process.env.UPLOAD_DIR,
+          }
+          : {}),
+      });
     }
+
   }
 );
 

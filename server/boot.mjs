@@ -107,6 +107,8 @@ function extractAdminToken(req) {
 
 // Guarda archivo en disco y retorna ruta relativa segura
 async function saveFileToDisk({ buffer, originalname, mimetype, folderRel }) {
+  const baseDir = process.env.UPLOAD_DIR || UPLOAD_BASE || "/app/uploads";
+
   const ext =
     mimetype?.includes("png") ? "png" :
       mimetype?.includes("webp") ? "webp" :
@@ -114,16 +116,41 @@ async function saveFileToDisk({ buffer, originalname, mimetype, folderRel }) {
 
   const safeName = sanitize(originalname || `archivo.${ext}`);
   const fileName = `${Date.now()}-${safeName}`;
-  const folderAbs = path.join(UPLOAD_BASE, folderRel);
 
-  fs.mkdirSync(folderAbs, { recursive: true });
-
+  const folderAbs = path.join(baseDir, folderRel);
   const fileAbs = path.join(folderAbs, fileName);
-  await fs.promises.writeFile(fileAbs, buffer);
 
-  const relPath = path.posix.join(folderRel.split(path.sep).join("/"), fileName);
-  return relPath; // ejemplo: portas/2026.../123-ine-frente.jpg
+  try {
+    console.log("[saveFileToDisk] baseDir:", baseDir);
+    console.log("[saveFileToDisk] folderAbs:", folderAbs);
+
+    // 1) Crear carpeta
+    fs.mkdirSync(folderAbs, { recursive: true });
+
+    // 2) Validar escritura (si aquí falla, es permisos/montaje)
+    await fs.promises.access(folderAbs, fs.constants.W_OK);
+
+    // 3) Guardar archivo
+    await fs.promises.writeFile(fileAbs, buffer);
+
+    // 4) Retornar path relativo (para links)
+    const relPath = path.posix.join(folderRel.split(path.sep).join("/"), fileName);
+
+    console.log("[saveFileToDisk] saved:", fileAbs);
+    return relPath;
+  } catch (err) {
+    console.error("[saveFileToDisk] ERROR:", {
+      message: err?.message,
+      code: err?.code,
+      stack: err?.stack,
+      baseDir,
+      folderAbs,
+      fileAbs,
+    });
+    throw err; // para que el catch del endpoint responda el error real
+  }
 }
+
 
 // Link de descarga protegido (solo mesa)
 function adminDownloadUrl(relPath) {

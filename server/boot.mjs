@@ -325,9 +325,15 @@ app.post(
   ]),
   async (req, res) => {
     try {
+      console.log("[/api/portabilidad] hit", {
+        hasFiles: !!req.files,
+        filesKeys: Object.keys(req.files || {}),
+        bodyKeys: Object.keys(req.body || {}),
+        dataType: typeof req.body?.data
+      });
       // 1) data
-      const rawData = req.body?.data || "{}";
-      const data = JSON.parse(rawData);
+      const rawData = req.body?.data ?? {};
+      const data = typeof rawData === "string" ? JSON.parse(rawData || "{}") : rawData;
 
       // 2) archivos
       const fFrente = req.files?.ineFrente?.[0] || req.files?.frente?.[0] || null;
@@ -416,7 +422,7 @@ app.post(
         emailStatus,
       });
     } catch (err) {
-      console.error("[POST /api/portabilidad] ERROR:", err);
+      console.error("[/api/portabilidad] ERROR:", err?.stack || err);
       return res.status(500).json({ ok: false, error: err?.message || "Server error" });
     }
   }

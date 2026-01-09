@@ -57,8 +57,17 @@ const upload = multer({
   storage,
   limits: { fileSize: 15 * 1024 * 1024 }, // 15 MB
   fileFilter: (req, file, cb) => {
-    const ok = /^image\/(png|jpe?g|webp)$/i.test(file.mimetype);
-    if (!ok) return cb(new Error("Formato no permitido. Usa PNG/JPG/WEBP."));
+    console.log("[multer] file:", {
+      field: file.fieldname,
+      name: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size
+    });
+
+    const ok = /^image\/(png|jpe?g|webp)$/i.test(file.mimetype)
+      || file.mimetype === "application/octet-stream"; // fallback
+
+    if (!ok) return cb(new Error(`Formato no permitido: ${file.mimetype}`));
     cb(null, true);
   },
 });
